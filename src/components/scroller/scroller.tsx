@@ -10,6 +10,12 @@ export interface ScrollerTheme {
     thumbBorderRadius?: string | number;
     thumbInset?: string | number;
     focusColor?: string;
+    /** Milliseconds before the thumb auto-hides after a scroll. Default 1000. */
+    hideDelayMs?: number;
+    /** Thumb fade in/out duration in milliseconds. Default 150. */
+    fadeMs?: number;
+    /** Minimum thumb length in pixels — keeps the thumb grabbable for very long content. Default 30. */
+    minThumbLength?: number;
 }
 
 export interface ScrollerHandle {
@@ -34,6 +40,8 @@ interface ScrollerProps {
     onReachStart?: () => void;
     /** Fires when the scroll position transitions to the end. */
     onReachEnd?: () => void;
+    /** Show the thumb continuously instead of auto-hiding. Default false. */
+    alwaysShowThumb?: boolean;
 }
 
 const toLength = (v: string | number | undefined): string | undefined =>
@@ -50,6 +58,7 @@ const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
     onScroll,
     onReachStart,
     onReachEnd,
+    alwaysShowThumb,
 }, ref): JSX.Element => {
 
     const isHorizontal = orientation === "horizontal";
@@ -60,8 +69,13 @@ const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
     const [internalScroll, setInternalScroll] = React.useState(0);
     const [isScrolling, setIsScrolling] = React.useState(false);
     const [isTrackFocused, setIsTrackFocused] = React.useState(false);
+    const [isHovered, setIsHovered] = React.useState(false);
     const [measured, setMeasured] = React.useState({ width: 0, height: 0 });
     const [measuredContent, setMeasuredContent] = React.useState({ width: 0, height: 0 });
+
+    const hideDelayMs = theme?.hideDelayMs ?? 1000;
+    const fadeMs = theme?.fadeMs ?? 150;
+    const minThumbLength = theme?.minThumbLength ?? 30;
 
     const isControlled = scrollPosition !== undefined;
     const contentScroll = isControlled ? scrollPosition : internalScroll;
@@ -109,9 +123,9 @@ const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
             return;
         }
         setIsScrolling(true);
-        const timeout = setTimeout(() => setIsScrolling(false), 1000);
+        const timeout = setTimeout(() => setIsScrolling(false), hideDelayMs);
         return () => clearTimeout(timeout);
-    }, [contentScroll]);
+    }, [contentScroll, hideDelayMs]);
 
     const dragRectRef = React.useRef<DOMRect | null>(null);
     const thumbClickOffsetRef = React.useRef(0);
@@ -123,7 +137,10 @@ const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
 
     const viewToSizeRatio = contentViewSize / effectiveContentSize;
     const totalOverflow = effectiveContentSize - contentViewSize;
-    const sliderLength = sliderTrackLength * viewToSizeRatio;
+    // Clamp thumb to a minimum length so it stays grabbable on very long content.
+    // The clamp is capped at the track length itself (defensive — math falls out cleanly when no overflow).
+    const naturalSliderLength = sliderTrackLength * viewToSizeRatio;
+    const sliderLength = Math.min(sliderTrackLength, Math.max(minThumbLength, naturalSliderLength));
     const maxSlideableDist = sliderTrackLength - sliderLength;
     const halfSliderLength = sliderLength / 2;
     const fractionScrolled = contentScroll < totalOverflow ? contentScroll / totalOverflow : 1;
@@ -230,12 +247,13 @@ const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
     const trackStyle: React.CSSProperties = isHorizontal
         ? { width: sliderTrackLength, position: "absolute", bottom: 0, left: 0 }
         : { height: sliderTrackLength, position: "absolute", top: 0, right: 0 };
+    const thumbVisible = canScroll && (alwaysShowThumb || isScrolling || isTrackFocused || isHovered);
     const sliderStyle: React.CSSProperties = {
         ...(isHorizontal
             ? { width: sliderLength, left: sliderPosition }
             : { height: sliderLength, top: sliderPosition }),
-        opacity: canScroll && (isScrolling || isTrackFocused) ? 1 : 0,
-        transition: "opacity 150ms",
+        opacity: thumbVisible ? 1 : 0,
+        transition: `opacity ${fadeMs}ms`,
     };
     const themeStyle = {
         "--scroller-bg": theme?.backgroundColor,
@@ -352,7 +370,12 @@ const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
     }));
 
     return (
-        <div className={styles.scrollerArea} style={themeStyle}>
+        <div
+            className={styles.scrollerArea}
+            style={themeStyle}
+            onPointerEnter={(e) => { if (e.pointerType === "mouse") setIsHovered(true); }}
+            onPointerLeave={(e) => { if (e.pointerType === "mouse") setIsHovered(false); }}
+        >
             {contentView}
             {sliderTrack}
         </div>
