@@ -1,11 +1,12 @@
 import * as React from "react";
+import styles from "./scroller.module.css";
 
 type Orientation = "horizontal" | "vertical";
 
 interface ScrollerProps {
     orientation: Orientation;
     title: string;
-    contentItems: string[];
+    children: React.ReactNode;
     contentSize: number;
     viewWidth?: number;
     viewHeight?: number;
@@ -14,7 +15,7 @@ interface ScrollerProps {
 const Scroller = ({
     orientation,
     title,
-    contentItems,
+    children,
     contentSize,
     viewWidth,
     viewHeight,
@@ -88,8 +89,8 @@ const Scroller = ({
     }, [isHorizontal, totalOverflow]);
 
     const classes = isHorizontal
-        ? { view: "content-view-container", wrapper: "content-wrapper", item: "content-item", track: "slider-track", slider: "slider" }
-        : { view: "content-view-container-vert", wrapper: "content-wrapper-vert", item: "content-item-vert", track: "slider-track-vert", slider: "slider-vert" };
+        ? { view: styles.view, wrapper: styles.wrapper, slider: styles.slider }
+        : { view: styles.viewVert, wrapper: styles.wrapperVert, slider: styles.sliderVert };
 
     const isDragging = mouseDownVal !== undefined;
     const widthStyle: React.CSSProperties = viewWidth !== undefined
@@ -143,23 +144,17 @@ const Scroller = ({
             }}
             style={viewStyle}>
                 <div className={classes.wrapper} style={wrapperStyle}>
-                    {contentItems.map((x, i) => (
-                        <div key={i} className={classes.item}>{x}</div>
-                    ))}
+                    {children}
                 </div>
         </div>
     );
 
     const sliderTrack = (
         <div
-            className={classes.track}
             onMouseDown={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 dragRectRef.current = rect;
                 setMouseDownOnSlider(true);
-                // set content scroll such that the slider's midpoint will be where the user clicked, if possible
-                // the only time val will be something besides the min or max will be when the slider midpoint is able to where the user clicked.
-                // which means the mid point (i.e., the clicked point) should be on [sliderLength / 2, tracklength - (sliderlength / 2)]
                 setContentScroll(transformSliderBarVal(posInRect(e, rect)));
             }}
             onMouseUp={() => {
@@ -180,11 +175,7 @@ const Scroller = ({
     return (
         <>
             <h1>{title}</h1>
-            <br />
-            <br />
-            <br />
-            <br />
-            <div style={{ position: "relative", display: "block" }}>
+            <div className={styles.scrollerArea}>
                 {contentView}
                 {sliderTrack}
             </div>
