@@ -8,14 +8,14 @@ export const App = (): JSX.Element => {
         <div className="container">
             <Scroller
                 orientation="vertical"
-                title="Demo Scroller (vertical)"
+                title="Scroller - vertical"
                 contentItems={verticalContent}
                 contentSize={verticalContent.length * 24}
                 viewHeight={500}
             />
             <Scroller
                 orientation="horizontal"
-                title="Demo Scroller (horizontal)"
+                title="Scroller - horizontal"
                 contentItems={horizontalContent}
                 contentSize={horizontalContent.length * 100}
                 viewWidth={800}

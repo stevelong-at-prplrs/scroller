@@ -170,7 +170,6 @@ const Scroller = ({
             <br />
             <br />
             <br />
-            <h4>Content container</h4>
             <div style={{ position: "relative", display: "block" }}>
                 {contentView}
                 {sliderTrack}
