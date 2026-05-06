@@ -9,6 +9,7 @@ export interface ScrollerTheme {
     thumbThickness?: string | number;
     thumbBorderRadius?: string | number;
     thumbInset?: string | number;
+    focusColor?: string;
 }
 
 interface ScrollerProps {
@@ -35,11 +36,13 @@ const Scroller = ({
 }: ScrollerProps): JSX.Element => {
 
     const isHorizontal = orientation === "horizontal";
+    const contentId = React.useId();
 
     const [mouseDownVal, setMouseDownVal] = React.useState<number>();
     const [mouseDownOnSlider, setMouseDownOnSlider] = React.useState(false);
     const [contentScroll, setContentScroll] = React.useState(0);
     const [isScrolling, setIsScrolling] = React.useState(false);
+    const [isTrackFocused, setIsTrackFocused] = React.useState(false);
     const [measured, setMeasured] = React.useState({ width: 0, height: 0 });
     const [measuredContent, setMeasuredContent] = React.useState({ width: 0, height: 0 });
 
@@ -109,10 +112,40 @@ const Scroller = ({
     const transformSliderBarVal = (num: number) =>
         ((num <= halfSliderLength ? halfSliderLength : num >= maxSliderVal ? maxSliderVal : num) - halfSliderLength) / sliderRangeToOverflow;
 
+    const canScroll = totalOverflow > 0 && contentViewSize > 0;
+    const ariaValueMax = Math.max(0, totalOverflow);
+    const ariaValueNow = Math.max(0, Math.min(contentScroll, ariaValueMax));
+
+    const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (!canScroll) return;
+        const lineSize = 40;
+        const pageSize = contentViewSize;
+        const clamp = (v: number) => Math.max(0, Math.min(totalOverflow, v));
+        let next: number | null = null;
+
+        switch (e.key) {
+            case "ArrowLeft":  if (isHorizontal)  next = clamp(contentScroll - lineSize); break;
+            case "ArrowRight": if (isHorizontal)  next = clamp(contentScroll + lineSize); break;
+            case "ArrowUp":    if (!isHorizontal) next = clamp(contentScroll - lineSize); break;
+            case "ArrowDown":  if (!isHorizontal) next = clamp(contentScroll + lineSize); break;
+            case "PageUp":     next = clamp(contentScroll - pageSize); break;
+            case "PageDown":   next = clamp(contentScroll + pageSize); break;
+            case " ":          if (!isHorizontal) next = clamp(contentScroll + (e.shiftKey ? -pageSize : pageSize)); break;
+            case "Home":       next = 0; break;
+            case "End":        next = totalOverflow; break;
+        }
+
+        if (next !== null) {
+            e.preventDefault();
+            setContentScroll(next);
+        }
+    };
+
     React.useEffect(() => {
         const el = contentViewRef.current;
         if (!el) return;
         const onWheel = (e: WheelEvent) => {
+            if (totalOverflow <= 0) return;
             e.preventDefault();
             const delta = isHorizontal ? e.deltaX : e.deltaY;
             setContentScroll((prev) => Math.max(0, Math.min(totalOverflow, prev + delta)));
@@ -142,7 +175,7 @@ const Scroller = ({
     const viewStyle: React.CSSProperties = {
         ...widthStyle,
         ...heightStyle,
-        cursor: isDragging ? "grabbing" : "grab",
+        cursor: !canScroll ? "default" : isDragging ? "grabbing" : "grab",
     };
     const wrapperStyle: React.CSSProperties = isHorizontal
         ? { width: contentSize ?? "max-content", left: -contentScroll }
@@ -154,7 +187,7 @@ const Scroller = ({
         ...(isHorizontal
             ? { width: sliderLength, left: sliderPosition }
             : { height: sliderLength, top: sliderPosition }),
-        opacity: isScrolling ? 1 : 0,
+        opacity: canScroll && (isScrolling || isTrackFocused) ? 1 : 0,
         transition: "opacity 150ms",
     };
     const themeStyle = {
@@ -163,27 +196,35 @@ const Scroller = ({
         "--scroller-thumb-thickness": toLength(theme?.thumbThickness),
         "--scroller-thumb-radius": toLength(theme?.thumbBorderRadius),
         "--scroller-thumb-inset": toLength(theme?.thumbInset),
+        "--scroller-focus": theme?.focusColor,
     } as React.CSSProperties;
 
     const contentView = (
         <div
             ref={contentViewRef}
+            id={contentId}
             className={classes.view}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
+                if (!canScroll) return;
+                e.currentTarget.setPointerCapture(e.pointerId);
                 const rect = e.currentTarget.getBoundingClientRect();
                 dragRectRef.current = rect;
                 setMouseDownVal(posInRect(e, rect) + contentScroll);
             }}
-            onMouseUp={() => {
+            onPointerUp={() => {
                 setMouseDownVal(undefined);
                 dragRectRef.current = null;
             }}
-            onMouseMove={(e) => {
+            onPointerCancel={() => {
+                setMouseDownVal(undefined);
+                dragRectRef.current = null;
+            }}
+            onPointerMove={(e) => {
+                if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
                 const rect = dragRectRef.current;
-                if (rect && mouseDownVal !== undefined) {
-                    const newVal = Math.min(totalOverflow, mouseDownVal - posInRect(e, rect));
-                    setContentScroll(Math.max(0, newVal));
-                }
+                if (!rect || mouseDownVal === undefined) return;
+                const newVal = Math.min(totalOverflow, mouseDownVal - posInRect(e, rect));
+                setContentScroll(Math.max(0, newVal));
             }}
             style={viewStyle}>
                 <div ref={wrapperRef} className={classes.wrapper} style={wrapperStyle}>
@@ -194,21 +235,38 @@ const Scroller = ({
 
     const sliderTrack = (
         <div
-            onMouseDown={(e) => {
+            className={styles.track}
+            role="scrollbar"
+            aria-orientation={orientation}
+            aria-valuemin={0}
+            aria-valuemax={ariaValueMax}
+            aria-valuenow={ariaValueNow}
+            aria-controls={contentId}
+            tabIndex={canScroll ? 0 : -1}
+            onFocus={() => setIsTrackFocused(true)}
+            onBlur={() => setIsTrackFocused(false)}
+            onKeyDown={onKeyDown}
+            onPointerDown={(e) => {
+                if (!canScroll) return;
+                e.currentTarget.setPointerCapture(e.pointerId);
                 const rect = e.currentTarget.getBoundingClientRect();
                 dragRectRef.current = rect;
                 setMouseDownOnSlider(true);
                 setContentScroll(transformSliderBarVal(posInRect(e, rect)));
             }}
-            onMouseUp={() => {
+            onPointerUp={() => {
                 setMouseDownOnSlider(false);
                 dragRectRef.current = null;
             }}
-            onMouseMove={(e) => {
+            onPointerCancel={() => {
+                setMouseDownOnSlider(false);
+                dragRectRef.current = null;
+            }}
+            onPointerMove={(e) => {
+                if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
                 const rect = dragRectRef.current;
-                if (rect && mouseDownOnSlider) {
-                    setContentScroll(transformSliderBarVal(posInRect(e, rect)));
-                }
+                if (!rect || !mouseDownOnSlider) return;
+                setContentScroll(transformSliderBarVal(posInRect(e, rect)));
             }}
             style={trackStyle}>
             <div className={classes.slider} style={sliderStyle} />

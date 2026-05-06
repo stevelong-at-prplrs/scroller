@@ -3,6 +3,15 @@
     margin-top: 6rem;
 }
 
+.track:focus {
+    outline: none;
+}
+
+.track:focus-visible {
+    outline: 2px solid var(--scroller-focus, dodgerblue);
+    outline-offset: 2px;
+}
+
 .view {
     background-color: var(--scroller-bg, darkblue);
     overflow-x: hidden;
