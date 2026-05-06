@@ -15,7 +15,7 @@ interface ScrollerProps {
     orientation: Orientation;
     title: string;
     children: React.ReactNode;
-    contentSize: number;
+    contentSize?: number;
     viewWidth?: number;
     viewHeight?: number;
     theme?: ScrollerTheme;
@@ -41,6 +41,7 @@ const Scroller = ({
     const [contentScroll, setContentScroll] = React.useState(0);
     const [isScrolling, setIsScrolling] = React.useState(false);
     const [measured, setMeasured] = React.useState({ width: 0, height: 0 });
+    const [measuredContent, setMeasuredContent] = React.useState({ width: 0, height: 0 });
 
     const contentViewRef = React.useRef<HTMLDivElement>(null);
     React.useLayoutEffect(() => {
@@ -53,6 +54,25 @@ const Scroller = ({
         observer.observe(el);
         return () => observer.disconnect();
     }, []);
+
+    const wrapperRef = React.useRef<HTMLDivElement>(null);
+    React.useLayoutEffect(() => {
+        if (contentSize !== undefined) return;
+        const el = wrapperRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        setMeasuredContent({ width: rect.width, height: rect.height });
+        const observer = new ResizeObserver((entries) => {
+            const { width, height } = entries[0].contentRect;
+            setMeasuredContent({ width, height });
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [contentSize]);
+
+    const effectiveContentSize = contentSize !== undefined
+        ? contentSize
+        : (isHorizontal ? measuredContent.width : measuredContent.height);
 
     const contentViewSize = isHorizontal
         ? (measured.width || viewWidth || 0)
@@ -75,8 +95,8 @@ const Scroller = ({
     const posInRect = (event: { clientX: number; clientY: number }, rect: DOMRect) =>
         isHorizontal ? event.clientX - rect.left : event.clientY - rect.top;
 
-    const viewToSizeRatio = contentViewSize / contentSize;
-    const totalOverflow = contentSize - contentViewSize;
+    const viewToSizeRatio = contentViewSize / effectiveContentSize;
+    const totalOverflow = effectiveContentSize - contentViewSize;
     const sliderLength = sliderTrackLength * viewToSizeRatio;
     const maxSlideableDist = sliderTrackLength - sliderLength;
     const halfSliderLength = sliderLength / 2;
@@ -109,21 +129,21 @@ const Scroller = ({
     const widthStyle: React.CSSProperties = viewWidth !== undefined
         ? { width: viewWidth }
         : isHorizontal
-            ? { width: "100%", maxWidth: contentSize }
+            ? { width: "100%", maxWidth: effectiveContentSize || undefined }
             : { width: "100%" };
     const heightStyle: React.CSSProperties = viewHeight !== undefined
         ? { height: viewHeight }
         : isHorizontal
             ? { height: "100%" }
-            : { height: "100%", maxHeight: contentSize };
+            : { height: "100%", maxHeight: effectiveContentSize || undefined };
     const viewStyle: React.CSSProperties = {
         ...widthStyle,
         ...heightStyle,
         cursor: isDragging ? "grabbing" : "grab",
     };
     const wrapperStyle: React.CSSProperties = isHorizontal
-        ? { width: contentSize, left: -contentScroll }
-        : { height: contentSize, top: -contentScroll };
+        ? { width: contentSize ?? "max-content", left: -contentScroll }
+        : { height: contentSize ?? "max-content", top: -contentScroll };
     const trackStyle: React.CSSProperties = isHorizontal
         ? { width: sliderTrackLength, position: "absolute", bottom: 0, left: 0 }
         : { height: sliderTrackLength, position: "absolute", top: 0, right: 0 };
@@ -163,7 +183,7 @@ const Scroller = ({
                 }
             }}
             style={viewStyle}>
-                <div className={classes.wrapper} style={wrapperStyle}>
+                <div ref={wrapperRef} className={classes.wrapper} style={wrapperStyle}>
                     {children}
                 </div>
         </div>

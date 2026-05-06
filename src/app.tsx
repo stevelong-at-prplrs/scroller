@@ -9,7 +9,6 @@ export const App = (): JSX.Element => {
             <Scroller
                 orientation="vertical"
                 title="Scroller - vertical"
-                contentSize={verticalContent.length * 24}
                 viewHeight={500}
                 theme={{
                     backgroundColor: "#0d3b3a",
@@ -26,7 +25,6 @@ export const App = (): JSX.Element => {
             <Scroller
                 orientation="horizontal"
                 title="Scroller - horizontal"
-                contentSize={horizontalContent.length * 100}
                 viewWidth={800}
                 viewHeight={100}
                 theme={{
