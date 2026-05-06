@@ -3,6 +3,14 @@ import styles from "./scroller.module.css";
 
 type Orientation = "horizontal" | "vertical";
 
+export interface ScrollerTheme {
+    backgroundColor?: string;
+    thumbColor?: string;
+    thumbThickness?: string | number;
+    thumbBorderRadius?: string | number;
+    thumbInset?: string | number;
+}
+
 interface ScrollerProps {
     orientation: Orientation;
     title: string;
@@ -10,7 +18,11 @@ interface ScrollerProps {
     contentSize: number;
     viewWidth?: number;
     viewHeight?: number;
+    theme?: ScrollerTheme;
 }
+
+const toLength = (v: string | number | undefined): string | undefined =>
+    v === undefined ? undefined : typeof v === "number" ? `${v}px` : v;
 
 const Scroller = ({
     orientation,
@@ -19,6 +31,7 @@ const Scroller = ({
     contentSize,
     viewWidth,
     viewHeight,
+    theme,
 }: ScrollerProps): JSX.Element => {
 
     const isHorizontal = orientation === "horizontal";
@@ -121,6 +134,13 @@ const Scroller = ({
         opacity: isScrolling ? 1 : 0,
         transition: "opacity 150ms",
     };
+    const themeStyle = {
+        "--scroller-bg": theme?.backgroundColor,
+        "--scroller-thumb-color": theme?.thumbColor,
+        "--scroller-thumb-thickness": toLength(theme?.thumbThickness),
+        "--scroller-thumb-radius": toLength(theme?.thumbBorderRadius),
+        "--scroller-thumb-inset": toLength(theme?.thumbInset),
+    } as React.CSSProperties;
 
     const contentView = (
         <div
@@ -175,7 +195,7 @@ const Scroller = ({
     return (
         <>
             <h1>{title}</h1>
-            <div className={styles.scrollerArea}>
+            <div className={styles.scrollerArea} style={themeStyle}>
                 {contentView}
                 {sliderTrack}
             </div>
