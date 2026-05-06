@@ -94,6 +94,9 @@ const Scroller = ({
     }, [contentScroll]);
 
     const dragRectRef = React.useRef<DOMRect | null>(null);
+    const thumbClickOffsetRef = React.useRef(0);
+    const contentScrollRef = React.useRef(contentScroll);
+    contentScrollRef.current = contentScroll;
 
     const posInRect = (event: { clientX: number; clientY: number }, rect: DOMRect) =>
         isHorizontal ? event.clientX - rect.left : event.clientY - rect.top;
@@ -103,14 +106,14 @@ const Scroller = ({
     const sliderLength = sliderTrackLength * viewToSizeRatio;
     const maxSlideableDist = sliderTrackLength - sliderLength;
     const halfSliderLength = sliderLength / 2;
-    const maxSliderVal = sliderTrackLength - halfSliderLength;
-    const adjSliderRange = maxSliderVal - halfSliderLength;
-    const sliderRangeToOverflow = adjSliderRange / totalOverflow;
     const fractionScrolled = contentScroll < totalOverflow ? contentScroll / totalOverflow : 1;
     const sliderPosition = Math.max(0, fractionScrolled * maxSlideableDist);
 
-    const transformSliderBarVal = (num: number) =>
-        ((num <= halfSliderLength ? halfSliderLength : num >= maxSliderVal ? maxSliderVal : num) - halfSliderLength) / sliderRangeToOverflow;
+    const thumbStartToContentScroll = (thumbStart: number) => {
+        if (maxSlideableDist <= 0) return 0;
+        const clamped = Math.max(0, Math.min(maxSlideableDist, thumbStart));
+        return (clamped / maxSlideableDist) * totalOverflow;
+    };
 
     const canScroll = totalOverflow > 0 && contentViewSize > 0;
     const ariaValueMax = Math.max(0, totalOverflow);
@@ -146,9 +149,17 @@ const Scroller = ({
         if (!el) return;
         const onWheel = (e: WheelEvent) => {
             if (totalOverflow <= 0) return;
+            // Horizontal mode: prefer the dominant axis so wheels without an X axis still scroll,
+            // and shift+wheel (which the browser already swaps to deltaX) keeps working.
+            const delta = isHorizontal
+                ? (Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY)
+                : e.deltaY;
+            if (delta === 0) return;
+            const cur = contentScrollRef.current;
+            const next = Math.max(0, Math.min(totalOverflow, cur + delta));
+            if (next === cur) return; // at boundary; let the page scroll instead
             e.preventDefault();
-            const delta = isHorizontal ? e.deltaX : e.deltaY;
-            setContentScroll((prev) => Math.max(0, Math.min(totalOverflow, prev + delta)));
+            setContentScroll(next);
         };
         el.addEventListener("wheel", onWheel, { passive: false });
         return () => el.removeEventListener("wheel", onWheel);
@@ -252,7 +263,14 @@ const Scroller = ({
                 const rect = e.currentTarget.getBoundingClientRect();
                 dragRectRef.current = rect;
                 setMouseDownOnSlider(true);
-                setContentScroll(transformSliderBarVal(posInRect(e, rect)));
+                const clickPos = posInRect(e, rect);
+                const thumbEnd = sliderPosition + sliderLength;
+                const isOnThumb = clickPos >= sliderPosition && clickPos <= thumbEnd;
+                // On the thumb: preserve the cursor's offset within it so it doesn't jump.
+                // On empty track: cursor maps to thumb midpoint, so we still feel "centered."
+                const offset = isOnThumb ? clickPos - sliderPosition : halfSliderLength;
+                thumbClickOffsetRef.current = offset;
+                setContentScroll(thumbStartToContentScroll(clickPos - offset));
             }}
             onPointerUp={() => {
                 setMouseDownOnSlider(false);
@@ -266,7 +284,8 @@ const Scroller = ({
                 if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
                 const rect = dragRectRef.current;
                 if (!rect || !mouseDownOnSlider) return;
-                setContentScroll(transformSliderBarVal(posInRect(e, rect)));
+                const cur = posInRect(e, rect);
+                setContentScroll(thumbStartToContentScroll(cur - thumbClickOffsetRef.current));
             }}
             style={trackStyle}>
             <div className={classes.slider} style={sliderStyle} />
