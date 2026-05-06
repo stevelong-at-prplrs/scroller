@@ -14,7 +14,6 @@ export interface ScrollerTheme {
 
 interface ScrollerProps {
     orientation: Orientation;
-    title: string;
     children: React.ReactNode;
     contentSize?: number;
     viewWidth?: number;
@@ -27,7 +26,6 @@ const toLength = (v: string | number | undefined): string | undefined =>
 
 const Scroller = ({
     orientation,
-    title,
     children,
     contentSize,
     viewWidth,
@@ -293,13 +291,10 @@ const Scroller = ({
     );
 
     return (
-        <>
-            <h1>{title}</h1>
-            <div className={styles.scrollerArea} style={themeStyle}>
-                {contentView}
-                {sliderTrack}
-            </div>
-        </>
+        <div className={styles.scrollerArea} style={themeStyle}>
+            {contentView}
+            {sliderTrack}
+        </div>
     );
 };
 
