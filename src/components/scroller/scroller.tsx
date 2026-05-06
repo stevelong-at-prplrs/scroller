@@ -12,6 +12,13 @@ export interface ScrollerTheme {
     focusColor?: string;
 }
 
+export interface ScrollerHandle {
+    scrollTo: (position: number) => void;
+    scrollBy: (delta: number) => void;
+    scrollToIndex: (index: number) => void;
+    getScrollPosition: () => number;
+}
+
 interface ScrollerProps {
     orientation: Orientation;
     children: React.ReactNode;
@@ -19,30 +26,45 @@ interface ScrollerProps {
     viewWidth?: number;
     viewHeight?: number;
     theme?: ScrollerTheme;
+    /** Controlled-mode scroll position. When provided, the component does not own scroll state. */
+    scrollPosition?: number;
+    /** Fires on every scroll position change, in both controlled and uncontrolled modes. */
+    onScroll?: (position: number) => void;
+    /** Fires when the scroll position transitions to the start. */
+    onReachStart?: () => void;
+    /** Fires when the scroll position transitions to the end. */
+    onReachEnd?: () => void;
 }
 
 const toLength = (v: string | number | undefined): string | undefined =>
     v === undefined ? undefined : typeof v === "number" ? `${v}px` : v;
 
-const Scroller = ({
+const Scroller = React.forwardRef<ScrollerHandle, ScrollerProps>(({
     orientation,
     children,
     contentSize,
     viewWidth,
     viewHeight,
     theme,
-}: ScrollerProps): JSX.Element => {
+    scrollPosition,
+    onScroll,
+    onReachStart,
+    onReachEnd,
+}, ref): JSX.Element => {
 
     const isHorizontal = orientation === "horizontal";
     const contentId = React.useId();
 
     const [mouseDownVal, setMouseDownVal] = React.useState<number>();
     const [mouseDownOnSlider, setMouseDownOnSlider] = React.useState(false);
-    const [contentScroll, setContentScroll] = React.useState(0);
+    const [internalScroll, setInternalScroll] = React.useState(0);
     const [isScrolling, setIsScrolling] = React.useState(false);
     const [isTrackFocused, setIsTrackFocused] = React.useState(false);
     const [measured, setMeasured] = React.useState({ width: 0, height: 0 });
     const [measuredContent, setMeasuredContent] = React.useState({ width: 0, height: 0 });
+
+    const isControlled = scrollPosition !== undefined;
+    const contentScroll = isControlled ? scrollPosition : internalScroll;
 
     const contentViewRef = React.useRef<HTMLDivElement>(null);
     React.useLayoutEffect(() => {
@@ -117,6 +139,22 @@ const Scroller = ({
     const ariaValueMax = Math.max(0, totalOverflow);
     const ariaValueNow = Math.max(0, Math.min(contentScroll, ariaValueMax));
 
+    const commitScroll = (next: number | ((prev: number) => number)) => {
+        const prev = contentScrollRef.current;
+        const raw = typeof next === "function" ? next(prev) : next;
+        const clamped = Math.max(0, Math.min(totalOverflow, raw));
+        if (clamped === prev) return;
+        // Optimistic update so rapid back-to-back commits read fresh values
+        // before React re-renders.
+        contentScrollRef.current = clamped;
+        if (!isControlled) {
+            setInternalScroll(clamped);
+        }
+        onScroll?.(clamped);
+    };
+    const commitScrollRef = React.useRef(commitScroll);
+    commitScrollRef.current = commitScroll;
+
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (!canScroll) return;
         const lineSize = 40;
@@ -138,7 +176,7 @@ const Scroller = ({
 
         if (next !== null) {
             e.preventDefault();
-            setContentScroll(next);
+            commitScroll(next);
         }
     };
 
@@ -157,7 +195,7 @@ const Scroller = ({
             const next = Math.max(0, Math.min(totalOverflow, cur + delta));
             if (next === cur) return; // at boundary; let the page scroll instead
             e.preventDefault();
-            setContentScroll(next);
+            commitScrollRef.current(next);
         };
         el.addEventListener("wheel", onWheel, { passive: false });
         return () => el.removeEventListener("wheel", onWheel);
@@ -232,8 +270,7 @@ const Scroller = ({
                 if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
                 const rect = dragRectRef.current;
                 if (!rect || mouseDownVal === undefined) return;
-                const newVal = Math.min(totalOverflow, mouseDownVal - posInRect(e, rect));
-                setContentScroll(Math.max(0, newVal));
+                commitScroll(mouseDownVal - posInRect(e, rect));
             }}
             style={viewStyle}>
                 <div ref={wrapperRef} className={classes.wrapper} style={wrapperStyle}>
@@ -268,7 +305,7 @@ const Scroller = ({
                 // On empty track: cursor maps to thumb midpoint, so we still feel "centered."
                 const offset = isOnThumb ? clickPos - sliderPosition : halfSliderLength;
                 thumbClickOffsetRef.current = offset;
-                setContentScroll(thumbStartToContentScroll(clickPos - offset));
+                commitScroll(thumbStartToContentScroll(clickPos - offset));
             }}
             onPointerUp={() => {
                 setMouseDownOnSlider(false);
@@ -283,12 +320,36 @@ const Scroller = ({
                 const rect = dragRectRef.current;
                 if (!rect || !mouseDownOnSlider) return;
                 const cur = posInRect(e, rect);
-                setContentScroll(thumbStartToContentScroll(cur - thumbClickOffsetRef.current));
+                commitScroll(thumbStartToContentScroll(cur - thumbClickOffsetRef.current));
             }}
             style={trackStyle}>
             <div className={classes.slider} style={sliderStyle} />
         </div>
     );
+
+    const reachedStartRef = React.useRef(true);
+    const reachedEndRef = React.useRef(false);
+    React.useEffect(() => {
+        const isAtStart = contentScroll <= 0;
+        const isAtEnd = totalOverflow > 0 && contentScroll >= totalOverflow;
+        if (isAtStart && !reachedStartRef.current) onReachStart?.();
+        if (isAtEnd && !reachedEndRef.current) onReachEnd?.();
+        reachedStartRef.current = isAtStart;
+        reachedEndRef.current = isAtEnd;
+    }, [contentScroll, totalOverflow, onReachStart, onReachEnd]);
+
+    React.useImperativeHandle(ref, () => ({
+        scrollTo: (position: number) => commitScroll(position),
+        scrollBy: (delta: number) => commitScroll((prev) => prev + delta),
+        scrollToIndex: (index: number) => {
+            const wrapper = wrapperRef.current;
+            if (!wrapper) return;
+            const item = wrapper.children[index] as HTMLElement | undefined;
+            if (!item) return;
+            commitScroll(isHorizontal ? item.offsetLeft : item.offsetTop);
+        },
+        getScrollPosition: () => contentScrollRef.current,
+    }));
 
     return (
         <div className={styles.scrollerArea} style={themeStyle}>
@@ -296,6 +357,8 @@ const Scroller = ({
             {sliderTrack}
         </div>
     );
-};
+});
+
+Scroller.displayName = "Scroller";
 
 export default Scroller;

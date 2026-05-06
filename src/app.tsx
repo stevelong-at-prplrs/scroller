@@ -1,7 +1,7 @@
 import Scroller from "./components/scroller/scroller";
 
-const verticalContent = [...Array(40)].map(() => `${" "}Content`);
-const horizontalContent = [...Array(11)].map(() => `${" "}Content`);
+const verticalContent = [...Array(40)].map(() => `${'\u00A0'}Content`);
+const horizontalContent = [...Array(11)].map(() => `${'\u00A0'}Content`);
 
 export const App = (): JSX.Element => {
     return (
