@@ -193,3 +193,6 @@ Items that would extend the component, roughly ordered by impact and feasibility
 ### Performance
 - **Lazy loading of item content** — defer the heavy work inside items (image fetches, video poster loads, expensive React subtrees) until the item is at or near the viewport. Distinct from virtualization: virtualization avoids rendering DOM at all for off-screen items; lazy loading renders lightweight placeholders and only kicks in the expensive content as items approach visibility. Native `loading="lazy"` on `<img>` won't help here — it observes the document viewport, not the scroller's clipped region. A workable design is for the component to expose either an `IntersectionObserver`-based visibility hook (`useScrollerVisibility(itemRef)`) or a context that items consume, with a configurable "near-viewport" margin so loads can start slightly before items become visible.
 - **Virtualization** for large item lists (>1k). Render only the visible window plus an overscan buffer. Requires consumer-provided per-item sizes or per-item `ResizeObserver`s, and a meaningful refactor of how `children` are rendered (since today the wrapper measures and scrolls all children). Complementary to lazy loading: virtualization saves DOM cost; lazy loading saves resource-fetch cost.
+
+### Known issues
+- **Touch doesn't work correctly on the vertical orientation on mobile.
