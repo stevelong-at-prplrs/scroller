@@ -189,8 +189,8 @@ const Scroller = ({
         cursor: !canScroll ? "default" : isDragging ? "grabbing" : "grab",
     };
     const wrapperStyle: React.CSSProperties = isHorizontal
-        ? { width: contentSize ?? "max-content", left: -contentScroll }
-        : { height: contentSize ?? "max-content", top: -contentScroll };
+        ? { width: contentSize ?? "max-content", transform: `translate3d(${-contentScroll}px, 0, 0)` }
+        : { height: contentSize ?? "max-content", transform: `translate3d(0, ${-contentScroll}px, 0)` };
     const trackStyle: React.CSSProperties = isHorizontal
         ? { width: sliderTrackLength, position: "absolute", bottom: 0, left: 0 }
         : { height: sliderTrackLength, position: "absolute", top: 0, right: 0 };
