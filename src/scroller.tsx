@@ -56,10 +56,10 @@ const Scroller = ({
         return () => clearTimeout(timeout);
     }, [contentScroll]);
 
-    const getMousePosInBoundingRect = (event: React.MouseEvent<HTMLDivElement>) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        return isHorizontal ? event.clientX - rect.left : event.clientY - rect.top;
-    };
+    const dragRectRef = React.useRef<DOMRect | null>(null);
+
+    const posInRect = (event: { clientX: number; clientY: number }, rect: DOMRect) =>
+        isHorizontal ? event.clientX - rect.left : event.clientY - rect.top;
 
     const viewToSizeRatio = contentViewSize / contentSize;
     const totalOverflow = contentSize - contentViewSize;
@@ -125,11 +125,19 @@ const Scroller = ({
         <div
             ref={contentViewRef}
             className={classes.view}
-            onMouseDown={(e) => setMouseDownVal(getMousePosInBoundingRect(e) + contentScroll)}
-            onMouseUp={() => setMouseDownVal(undefined)}
+            onMouseDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                dragRectRef.current = rect;
+                setMouseDownVal(posInRect(e, rect) + contentScroll);
+            }}
+            onMouseUp={() => {
+                setMouseDownVal(undefined);
+                dragRectRef.current = null;
+            }}
             onMouseMove={(e) => {
-                if (mouseDownVal !== undefined && mouseDownVal >= 0) {
-                    const newVal = Math.min(totalOverflow, mouseDownVal - getMousePosInBoundingRect(e));
+                const rect = dragRectRef.current;
+                if (rect && mouseDownVal !== undefined && mouseDownVal >= 0) {
+                    const newVal = Math.min(totalOverflow, mouseDownVal - posInRect(e, rect));
                     setContentScroll(Math.max(0, newVal));
                 }
             }}
@@ -146,16 +154,22 @@ const Scroller = ({
         <div
             className={classes.track}
             onMouseDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                dragRectRef.current = rect;
                 setMouseDownOnSlider(true);
                 // set content scroll such that the slider's midpoint will be where the user clicked, if possible
                 // the only time val will be something besides the min or max will be when the slider midpoint is able to where the user clicked.
                 // which means the mid point (i.e., the clicked point) should be on [sliderLength / 2, tracklength - (sliderlength / 2)]
-                setContentScroll(transformSliderBarVal(getMousePosInBoundingRect(e)));
+                setContentScroll(transformSliderBarVal(posInRect(e, rect)));
             }}
-            onMouseUp={() => setMouseDownOnSlider(false)}
+            onMouseUp={() => {
+                setMouseDownOnSlider(false);
+                dragRectRef.current = null;
+            }}
             onMouseMove={(e) => {
-                if (mouseDownOnSlider) {
-                    setContentScroll(transformSliderBarVal(getMousePosInBoundingRect(e)));
+                const rect = dragRectRef.current;
+                if (rect && mouseDownOnSlider) {
+                    setContentScroll(transformSliderBarVal(posInRect(e, rect)));
                 }
             }}
             style={trackStyle}>
