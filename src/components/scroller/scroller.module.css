@@ -9,6 +9,11 @@
     max-width: 100%;
 }
 
+.view.vertical {
+    overflow-y: hidden;
+    margin-bottom: 2rem;
+}
+
 .wrapper {
     height: 100%;
     position: relative;
@@ -23,21 +28,8 @@
     margin-bottom: var(--scroller-thumb-inset, 3px);
 }
 
-.viewVert {
-    margin-bottom: 2rem;
-    background-color: var(--scroller-bg, darkblue);
-    overflow-y: hidden;
-}
-
-.wrapperVert {
-    position: relative;
-}
-
-.sliderVert {
+.slider.vertical {
     width: var(--scroller-thumb-thickness, 10px);
-    position: relative;
-    background-color: var(--scroller-thumb-color, rgba(128, 128, 128, 0.5));
-    border-radius: var(--scroller-thumb-radius, 5px);
-    user-select: none;
+    margin-bottom: 0;
     margin-right: var(--scroller-thumb-inset, 3px);
 }

@@ -121,9 +121,12 @@ const Scroller = ({
         return () => el.removeEventListener("wheel", onWheel);
     }, [isHorizontal, totalOverflow]);
 
-    const classes = isHorizontal
-        ? { view: styles.view, wrapper: styles.wrapper, slider: styles.slider }
-        : { view: styles.viewVert, wrapper: styles.wrapperVert, slider: styles.sliderVert };
+    const verticalMod = isHorizontal ? "" : ` ${styles.vertical}`;
+    const classes = {
+        view: styles.view + verticalMod,
+        wrapper: styles.wrapper + verticalMod,
+        slider: styles.slider + verticalMod,
+    };
 
     const isDragging = mouseDownVal !== undefined;
     const widthStyle: React.CSSProperties = viewWidth !== undefined
@@ -177,7 +180,7 @@ const Scroller = ({
             }}
             onMouseMove={(e) => {
                 const rect = dragRectRef.current;
-                if (rect && mouseDownVal !== undefined && mouseDownVal >= 0) {
+                if (rect && mouseDownVal !== undefined) {
                     const newVal = Math.min(totalOverflow, mouseDownVal - posInRect(e, rect));
                     setContentScroll(Math.max(0, newVal));
                 }
